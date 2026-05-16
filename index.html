@@ -1,0 +1,578 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>VERMIS — Alien Worm</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Orbitron:wght@400;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --ink: #04080a; --panel: rgba(4,10,8,0.94); --border: rgba(0,255,140,0.12);
+    --accent: #00ff8c; --text: #80c8a0; --label: #2a6644;
+  }
+  body { background: var(--ink); font-family: 'Share Tech Mono', monospace; color: var(--text); overflow: hidden; height: 100vh; width: 100vw; }
+  #cc { position: fixed; inset: 0; }
+  canvas { display: block; }
+
+  #hdr {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+    padding: 13px 20px; display: flex; align-items: baseline; gap: 14px;
+    background: linear-gradient(to bottom, rgba(4,8,6,0.96) 0%, transparent 100%);
+    pointer-events: none;
+  }
+  #hdr h1 { font-family: 'Orbitron', monospace; font-size: 12px; font-weight: 700; letter-spacing: 0.4em; color: var(--accent); }
+  #hdr .sub { font-size: 8px; letter-spacing: 0.22em; color: var(--label); }
+
+  #tbtn {
+    position: fixed; top: 10px; right: 13px; z-index: 20;
+    background: var(--panel); border: 1px solid var(--border); color: var(--accent);
+    font-family: 'Share Tech Mono', monospace; font-size: 9px; letter-spacing: 0.18em;
+    text-transform: uppercase; padding: 8px 11px; border-radius: 2px; cursor: pointer;
+    backdrop-filter: blur(12px);
+  }
+  #panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: 230px;
+    background: var(--panel); border-left: 1px solid var(--border);
+    padding: 50px 15px 24px; z-index: 10; backdrop-filter: blur(16px);
+    overflow-y: auto; transition: transform 0.3s ease;
+    scrollbar-width: thin; scrollbar-color: var(--border) transparent;
+  }
+  #panel.hidden { transform: translateX(100%); }
+
+  .pt {
+    font-family: 'Orbitron', monospace; font-size: 7px; letter-spacing: 0.38em;
+    color: var(--accent); text-transform: uppercase; margin-bottom: 11px;
+    border-bottom: 1px solid var(--border); padding-bottom: 7px;
+  }
+  .cg { margin-bottom: 12px; }
+  .cl {
+    display: flex; justify-content: space-between; align-items: center;
+    font-size: 9px; letter-spacing: 0.1em; color: var(--label);
+    text-transform: uppercase; margin-bottom: 5px;
+  }
+  .cl span { color: var(--accent); font-size: 10px; }
+  input[type=range] {
+    -webkit-appearance: none; appearance: none; width: 100%; height: 1px;
+    background: rgba(0,255,140,0.15); border-radius: 1px; outline: none; cursor: pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none; width: 13px; height: 13px;
+    background: var(--ink); border: 2px solid var(--accent); border-radius: 50%; cursor: pointer;
+  }
+  .tr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .tl { font-size: 9px; letter-spacing: 0.1em; color: var(--label); text-transform: uppercase; }
+  .tp {
+    position: relative; width: 36px; height: 18px; cursor: pointer;
+    background: rgba(0,255,140,0.08); border: 1px solid var(--border); border-radius: 9px;
+    transition: background 0.2s, border-color 0.2s;
+  }
+  .tp.on { background: rgba(0,255,140,0.2); border-color: var(--accent); }
+  .tp::after {
+    content: ''; position: absolute; top: 2px; left: 2px; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--label); transition: transform 0.2s, background 0.2s;
+  }
+  .tp.on::after { transform: translateX(18px); background: var(--accent); }
+  .dv { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
+  .ar { display: grid; grid-template-columns: repeat(3,1fr); gap: 4px; margin-bottom: 12px; }
+  .ab {
+    background: transparent; border: 1px solid var(--border); color: var(--label);
+    font-family: 'Share Tech Mono', monospace; font-size: 8px; letter-spacing: 0.05em;
+    padding: 7px 0; border-radius: 2px; cursor: pointer; transition: all 0.15s; text-transform: uppercase;
+  }
+  .ab:hover, .ab.active { background: rgba(0,255,140,0.08); border-color: var(--accent); color: var(--accent); }
+  .thr { display: grid; grid-template-columns: repeat(4,1fr); gap: 4px; margin-bottom: 4px; }
+  .ts {
+    height: 18px; border-radius: 2px; cursor: pointer; border: 2px solid transparent;
+    transition: border-color 0.15s, transform 0.1s;
+  }
+  .ts:hover { transform: scale(1.08); }
+  .ts.active { border-color: #fff; }
+  #hint {
+    position: fixed; bottom: 13px; left: 50%; transform: translateX(-50%);
+    font-size: 8px; letter-spacing: 0.2em; color: var(--label);
+    text-transform: uppercase; pointer-events: none; opacity: 0.4; white-space: nowrap;
+  }
+  body::after {
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:50;
+    background: repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,0.025) 2px,rgba(0,0,0,0.025) 4px);
+  }
+</style>
+</head>
+<body>
+<div id="cc"></div>
+<div id="hdr"><h1>VERMIS</h1><div class="sub">Hollow worm · alien geometry</div></div>
+<button id="tbtn">Controls</button>
+
+<div id="panel">
+  <div class="pt">Tube</div>
+  <div class="cg"><div class="cl">Radius <span id="radius-val">2.0</span></div><input type="range" id="radius" min="0.4" max="6" value="2" step="0.05"></div>
+  <div class="cg"><div class="cl">Wall Thick <span id="wall-val">0.22</span></div><input type="range" id="wall" min="0.05" max="1.5" value="0.22" step="0.01"></div>
+  <div class="cg"><div class="cl">Length <span id="len-val">22</span></div><input type="range" id="len" min="4" max="60" value="22" step="1"></div>
+  <div class="cg"><div class="cl">Segments <span id="seg-val">80</span></div><input type="range" id="seg" min="20" max="160" value="80" step="4"></div>
+  <div class="cg"><div class="cl">Radial Res <span id="rres-val">40</span></div><input type="range" id="rres" min="8" max="64" value="40" step="4"></div>
+
+  <div class="dv"></div>
+  <div class="pt">Curvature</div>
+  <div class="cg"><div class="cl">Bend X <span id="bx-val">0.00</span></div><input type="range" id="bx" min="-2" max="2" value="0" step="0.02"></div>
+  <div class="cg"><div class="cl">Bend Y <span id="by-val">0.00</span></div><input type="range" id="by" min="-2" max="2" value="0" step="0.02"></div>
+  <div class="cg"><div class="cl">Twist <span id="tw-val">0.00</span></div><input type="range" id="tw" min="-6" max="6" value="0" step="0.05"></div>
+
+  <div class="dv"></div>
+  <div class="pt">Undulation</div>
+  <div class="cg"><div class="cl">Speed <span id="uspd-val">1.0</span></div><input type="range" id="uspd" min="0" max="5" value="1" step="0.05"></div>
+  <div class="cg"><div class="cl">Amplitude <span id="uamp-val">0.5</span></div><input type="range" id="uamp" min="0" max="3" value="0.5" step="0.02"></div>
+  <div class="cg"><div class="cl">Frequency <span id="ufreq-val">1.5</span></div><input type="range" id="ufreq" min="0.2" max="6" value="1.5" step="0.05"></div>
+  <div class="tr"><div class="tl">Radial pulse</div><div class="tp" id="pulse-tp"></div></div>
+  <div class="cg"><div class="cl">Pulse Amt <span id="pamt-val">0.12</span></div><input type="range" id="pamt" min="0" max="0.8" value="0.12" step="0.01"></div>
+
+  <div class="dv"></div>
+  <div class="pt">Inner Teeth</div>
+  <div class="cg"><div class="cl">Rows <span id="trows-val">14</span></div><input type="range" id="trows" min="0" max="80" value="14" step="1"></div>
+  <div class="cg"><div class="cl">Per Ring <span id="tcount-val">16</span></div><input type="range" id="tcount" min="3" max="64" value="16" step="1"></div>
+  <div class="cg"><div class="cl">Height <span id="th-val">0.55</span></div><input type="range" id="th" min="0.05" max="2.5" value="0.55" step="0.02"></div>
+  <div class="cg"><div class="cl">Base Width <span id="tw2-val">0.7</span></div><input type="range" id="tw2" min="0.1" max="1.0" value="0.7" step="0.01"></div>
+  <div class="cg"><div class="cl">Row Gap <span id="tgap-val">1.0</span></div><input type="range" id="tgap" min="0.3" max="4" value="1" step="0.05"></div>
+  <div class="cg"><div class="cl">Mouth Clear <span id="mclear-val">1</span></div><input type="range" id="mclear" min="0" max="6" value="1" step="1"></div>
+  <div class="tr"><div class="tl">Animate teeth</div><div class="tp" id="tanim-tp"></div></div>
+
+  <div class="dv"></div>
+  <div class="pt">Appearance</div>
+  <div class="thr">
+    <div class="ts active" data-theme="bio"   style="background:linear-gradient(135deg,#0f4,#040)"></div>
+    <div class="ts" data-theme="blood"  style="background:linear-gradient(135deg,#f04,#400)"></div>
+    <div class="ts" data-theme="void"   style="background:linear-gradient(135deg,#80f,#208)"></div>
+    <div class="ts" data-theme="gold"   style="background:linear-gradient(135deg,#fd0,#840)"></div>
+    <div class="ts" data-theme="ice"    style="background:linear-gradient(135deg,#0df,#048)"></div>
+    <div class="ts" data-theme="bone"   style="background:linear-gradient(135deg,#eed,#876)"></div>
+    <div class="ts" data-theme="lava"   style="background:linear-gradient(135deg,#f80,#f20)"></div>
+    <div class="ts" data-theme="mono"   style="background:linear-gradient(135deg,#aaa,#222)"></div>
+  </div>
+  <div class="cg" style="margin-top:10px"><div class="cl">Opacity <span id="opa-val">0.92</span></div><input type="range" id="opa" min="0.1" max="1" value="0.92" step="0.01"></div>
+  <div class="cg"><div class="cl">Emissive <span id="emi-val">0.45</span></div><input type="range" id="emi" min="0" max="1" value="0.45" step="0.01"></div>
+  <div class="tr"><div class="tl">Wireframe</div><div class="tp" id="wire-tp"></div></div>
+
+  <div class="dv"></div>
+  <div class="pt">View</div>
+  <div class="ar">
+    <button class="ab active" data-axis="free">Free</button>
+    <button class="ab" data-axis="side">Side</button>
+    <button class="ab" data-axis="end">End-on</button>
+    <button class="ab" data-axis="top">Top</button>
+    <button class="ab" data-axis="iso">ISO</button>
+    <button class="ab" data-axis="fly">Fly-thru</button>
+  </div>
+</div>
+
+<div id="hint">drag · pinch · scroll · right-drag pan</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"></script>
+<script>
+// ── RENDERER ──────────────────────────────────
+const cont = document.getElementById('cc');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setClearColor(0x04080a, 1);
+cont.appendChild(renderer.domElement);
+
+const scene  = new THREE.Scene();
+scene.fog    = new THREE.FogExp2(0x04080a, 0.011);
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth/window.innerHeight, 0.01, 500);
+camera.position.set(0, 6, 28);
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.15));
+const lA = new THREE.PointLight(0x00ff88, 4, 80); lA.position.set(0,12,10);  scene.add(lA);
+const lB = new THREE.PointLight(0xff4060, 2, 60); lB.position.set(-15,-5,-8); scene.add(lB);
+const lC = new THREE.PointLight(0x4488ff,1.5,50); lC.position.set(15,8,5);   scene.add(lC);
+
+// ── THEMES (no lerpColors — manual lerp instead) ──
+const THEMES = {
+  bio:   { t:[[0,0.2,0.07],[0,0.4,0.13],[0,1,0.53]], teeth:[[0,1,0.27],[0,0.8,0.2]], lc:0x00ff88 },
+  blood: { t:[[0.2,0,0.02],[0.53,0,0.07],[1,0.13,0.26]], teeth:[[1,0.2,0.33],[0.8,0.07,0.2]], lc:0xff2244 },
+  void:  { t:[[0.07,0,0.13],[0.27,0,0.53],[0.67,0.27,1]], teeth:[[0.73,0.33,1],[0.53,0.2,0.8]], lc:0xaa44ff },
+  gold:  { t:[[0.13,0.07,0],[0.53,0.33,0],[1,0.8,0]], teeth:[[1,0.87,0.13],[0.8,0.6,0]], lc:0xffcc00 },
+  ice:   { t:[[0,0.07,0.13],[0,0.27,0.53],[0,0.8,1]], teeth:[[0.27,0.93,1],[0,0.6,0.8]], lc:0x00ccff },
+  bone:  { t:[[0.1,0.07,0.03],[0.42,0.35,0.25],[0.93,0.87,0.73]], teeth:[[1,0.94,0.8],[0.8,0.69,0.53]], lc:0xeeddbb },
+  lava:  { t:[[0.07,0,0],[0.8,0.2,0],[1,0.53,0]], teeth:[[1,0.6,0],[1,0.27,0]], lc:0xff6600 },
+  mono:  { t:[[0.03,0.03,0.03],[0.2,0.2,0.2],[0.6,0.6,0.6]], teeth:[[0.73,0.73,0.73],[0.4,0.4,0.4]], lc:0x888888 },
+};
+let theme = 'bio';
+
+function lerpRGB(a, b, f) { return [a[0]+(b[0]-a[0])*f, a[1]+(b[1]-a[1])*f, a[2]+(b[2]-a[2])*f]; }
+function themeColor(frac) {
+  const t = THEMES[theme].t;
+  if(frac < 0.5) return lerpRGB(t[0], t[1], frac*2);
+  return lerpRGB(t[1], t[2], (frac-0.5)*2);
+}
+
+// ── ORBIT ─────────────────────────────────────
+const orb = { theta:0.1, phi:1.4, radius:28, tT:0.1, tP:1.4, tR:28,
+               panX:0, panY:0, tPX:0, tPY:0, drag:false, pan:false, lx:0, ly:0,
+               fly:false, flyZ:0 };
+const cvs = renderer.domElement;
+
+cvs.addEventListener('mousedown', e=>{
+  if(e.button===0) orb.drag=true; if(e.button===2) orb.pan=true;
+  orb.lx=e.clientX; orb.ly=e.clientY;
+});
+window.addEventListener('mouseup', ()=>{ orb.drag=false; orb.pan=false; });
+window.addEventListener('mousemove', e=>{
+  if(orb.fly) return;
+  const dx=e.clientX-orb.lx, dy=e.clientY-orb.ly;
+  if(orb.drag){ orb.tT-=dx*0.005; orb.tP=Math.max(0.05,Math.min(Math.PI-0.05,orb.tP+dy*0.005)); }
+  if(orb.pan){ orb.tPX-=dx*0.03; orb.tPY+=dy*0.03; }
+  orb.lx=e.clientX; orb.ly=e.clientY;
+});
+cvs.addEventListener('wheel', e=>{ orb.tR=Math.max(2,Math.min(100,orb.tR+e.deltaY*0.03)); });
+cvs.addEventListener('contextmenu', e=>e.preventDefault());
+let pd=0;
+cvs.addEventListener('touchstart', e=>{
+  if(e.touches.length===1){ orb.drag=true; orb.lx=e.touches[0].clientX; orb.ly=e.touches[0].clientY; }
+  if(e.touches.length===2){ orb.drag=false; pd=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY); }
+},{ passive:true });
+cvs.addEventListener('touchend', ()=>{ orb.drag=false; },{ passive:true });
+cvs.addEventListener('touchmove', e=>{
+  if(e.touches.length===1&&orb.drag){
+    const dx=e.touches[0].clientX-orb.lx, dy=e.touches[0].clientY-orb.ly;
+    orb.tT-=dx*0.005; orb.tP=Math.max(0.05,Math.min(Math.PI-0.05,orb.tP+dy*0.005));
+    orb.lx=e.touches[0].clientX; orb.ly=e.touches[0].clientY;
+  }
+  if(e.touches.length===2){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    orb.tR=Math.max(2,Math.min(100,orb.tR-(d-pd)*0.05)); pd=d;
+  }
+  e.preventDefault();
+},{ passive:false });
+
+const _tmpV = new THREE.Vector3();
+function updateCamera(t){
+  const L=0.07;
+  if(orb.fly){
+    orb.flyZ -= 0.05 * P.uspd;
+    const frac = (((-orb.flyZ) % P.len) + P.len) % P.len / P.len;
+    const frac2 = ((frac + 0.04) % 1);
+    const p  = spineAt(frac,  t);
+    const p2 = spineAt(frac2, t);
+    camera.position.lerp(p, 0.08);
+    camera.lookAt(p2);
+    return;
+  }
+  orb.theta+=(orb.tT-orb.theta)*L; orb.phi+=(orb.tP-orb.phi)*L;
+  orb.radius+=(orb.tR-orb.radius)*L; orb.panX+=(orb.tPX-orb.panX)*L; orb.panY+=(orb.tPY-orb.panY)*L;
+  camera.position.set(
+    orb.radius*Math.sin(orb.phi)*Math.sin(orb.theta)+orb.panX,
+    orb.radius*Math.cos(orb.phi)+orb.panY,
+    orb.radius*Math.sin(orb.phi)*Math.cos(orb.theta)
+  );
+  camera.lookAt(orb.panX, orb.panY, 0);
+}
+
+// ── PARAMS ────────────────────────────────────
+const P = {
+  radius:2, wall:0.22, len:22, seg:80, rres:40,
+  bx:0, by:0, tw:0,
+  uspd:1, uamp:0.5, ufreq:1.5,
+  pulse:false, pamt:0.12,
+  trows:14, tcount:16, th:0.55, tw2:0.7, tgap:1, mclear:1,
+  tanim:false,
+  opa:0.92, emi:0.45, wire:false,
+};
+
+// ── SPINE ─────────────────────────────────────
+function spineAt(frac, t) {
+  const z    = (frac - 0.5) * P.len;
+  const w1   = P.uamp * Math.sin(frac*Math.PI*2*P.ufreq - t*P.uspd);
+  const w2   = P.uamp * 0.4 * Math.cos(frac*Math.PI*2*P.ufreq*1.3 - t*P.uspd*0.7 + 1);
+  const bdx  = P.bx * frac * frac * P.len * 0.15;
+  const bdy  = P.by * frac * frac * P.len * 0.15;
+  return new THREE.Vector3(w1+bdx, w2+bdy, z);
+}
+
+// ── SHARED FRAME VECTORS ──────────────────────
+const _tn=new THREE.Vector3(), _nn=new THREE.Vector3(), _bn=new THREE.Vector3();
+const _up=new THREE.Vector3(0,1,0);
+
+function frameAt(frac, t) {
+  const p  = spineAt(frac, t);
+  const p2 = spineAt(Math.min(1, frac+0.008), t);
+  _tn.subVectors(p2, p).normalize();
+  const d = _tn.dot(_up);
+  _nn.set(_up.x-d*_tn.x, _up.y-d*_tn.y, _up.z-d*_tn.z);
+  if(_nn.lengthSq()<1e-6) _nn.set(1,0,0);
+  _nn.normalize();
+  _bn.crossVectors(_tn, _nn).normalize();
+  return { p, tn:_tn.clone(), nn:_nn.clone(), bn:_bn.clone() };
+}
+
+// ── SCENE OBJECTS ─────────────────────────────
+const worm = new THREE.Group(); scene.add(worm);
+let tubeMesh=null, teethMeshes=[];
+
+// particles
+{
+  const g=new THREE.BufferGeometry();
+  const pp=new Float32Array(400*3);
+  for(let i=0;i<400;i++){ pp[i*3]=(Math.random()-0.5)*120; pp[i*3+1]=(Math.random()-0.5)*80; pp[i*3+2]=(Math.random()-0.5)*120; }
+  g.setAttribute('position',new THREE.BufferAttribute(pp,3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({color:0x00441a,size:0.07,transparent:true,opacity:0.28})));
+}
+
+// ── BUILD TUBE ────────────────────────────────
+function buildTube() {
+  if(tubeMesh){ worm.remove(tubeMesh); tubeMesh.geometry.dispose(); tubeMesh.material.dispose(); tubeMesh=null; }
+  const S=P.seg, R=P.rres;
+  const vCount=(S+1)*(R+1)*2;
+  const geo=new THREE.BufferGeometry();
+  geo.setAttribute('position',new THREE.BufferAttribute(new Float32Array(vCount*3),3));
+  geo.setAttribute('color',   new THREE.BufferAttribute(new Float32Array(vCount*3),3));
+
+  const idx=[];
+  const OFF=(S+1)*(R+1);
+  for(let i=0;i<S;i++){
+    for(let j=0;j<R;j++){
+      const a=i*(R+1)+j, b=(i+1)*(R+1)+j;
+      idx.push(a,b,a+1, b,b+1,a+1);         // outer
+      const ai=OFF+a, bi=OFF+b;
+      idx.push(ai,ai+1,bi, bi,ai+1,bi+1);   // inner (flipped)
+    }
+  }
+  // annular end caps
+  for(let j=0;j<R;j++){
+    const ao=j, bo=j+1, ai=OFF+j, bi=OFF+j+1;
+    idx.push(ao,ai,bo, bo,ai,bi);
+    const ao2=S*(R+1)+j, bo2=S*(R+1)+j+1, ai2=OFF+S*(R+1)+j, bi2=OFF+S*(R+1)+j+1;
+    idx.push(ao2,bo2,ai2, bo2,bi2,ai2);
+  }
+  geo.setIndex(idx);
+
+  const mat=new THREE.MeshPhongMaterial({
+    vertexColors:true, transparent:true, opacity:P.opa,
+    shininess:130, side:THREE.DoubleSide, wireframe:P.wire,
+    emissive:new THREE.Color().setRGB(...THEMES[theme].t[0]), emissiveIntensity:P.emi,
+  });
+  tubeMesh=new THREE.Mesh(geo,mat);
+  worm.add(tubeMesh);
+}
+
+function updateTube(t) {
+  if(!tubeMesh) return;
+  const S=P.seg, R=P.rres, OFF=(S+1)*(R+1);
+  const pos=tubeMesh.geometry.attributes.position;
+  const col=tubeMesh.geometry.attributes.color;
+
+  for(let i=0;i<=S;i++){
+    const frac=i/S;
+    const {p,nn,bn}=frameAt(frac,t);
+    const pulse=P.pulse ? 1+P.pamt*Math.sin(frac*Math.PI*4*P.ufreq-t*P.uspd*1.5) : 1;
+    const rO=(P.radius+P.wall)*pulse;
+    const rI=P.radius*pulse;
+    const twA=P.tw*frac*Math.PI;
+    const c=themeColor(frac);
+
+    for(let j=0;j<=R;j++){
+      const a=(j/R)*Math.PI*2+twA;
+      const cos=Math.cos(a), sin=Math.sin(a);
+      const nx=nn.x*cos+bn.x*sin, ny=nn.y*cos+bn.y*sin, nz=nn.z*cos+bn.z*sin;
+      const io=i*(R+1)+j, ii=OFF+io;
+      pos.setXYZ(io, p.x+nx*rO, p.y+ny*rO, p.z+nz*rO);
+      pos.setXYZ(ii, p.x+nx*rI, p.y+ny*rI, p.z+nz*rI);
+      col.setXYZ(io, c[0], c[1], c[2]);
+      col.setXYZ(ii, c[0]*0.55, c[1]*0.55, c[2]*0.55);
+    }
+  }
+  pos.needsUpdate=true; col.needsUpdate=true;
+  tubeMesh.geometry.computeVertexNormals();
+}
+
+// ── BUILD TEETH ────────────────────────────────
+// Each row: P.tcount triangles, perfectly tiling 360°
+// Teeth BASE width = (2π / tcount) * tw2  — always fills ring with no gaps
+// mclear = number of rows to skip at the mouth (frac near 0)
+function buildTeeth() {
+  teethMeshes.forEach(m=>{ worm.remove(m.mesh); m.mesh.geometry.dispose(); m.mesh.material.dispose(); });
+  teethMeshes=[];
+  if(P.trows===0) return;
+
+  const th=THEMES[theme];
+  const tc=th.teeth;
+
+  for(let row=0; row<P.trows; row++){
+    // rows start after mclear rows worth of spacing from mouth end
+    // place them from frac = mclearFrac to 1.0
+    const clearFrac = P.mclear / Math.max(P.trows,1) ;
+    // actual frac along tube for this row
+    const rawFrac = (row+0.5) / P.trows;
+    // skip rows in the clear zone at the mouth (frac ~ 0)
+    if(rawFrac < clearFrac) continue;
+
+    const N=P.tcount;
+    const verts=new Float32Array(N*3*3);  // 3 verts × 3 floats per tooth
+    const cols =new Float32Array(N*3*3);
+    const indices=[];
+
+    for(let k=0;k<N;k++){
+      const v=k*9;
+      // tip colour
+      cols[v]=tc[0][0];   cols[v+1]=tc[0][1];   cols[v+2]=tc[0][2];
+      // base L colour
+      cols[v+3]=tc[1][0]; cols[v+4]=tc[1][1];   cols[v+5]=tc[1][2];
+      // base R colour
+      cols[v+6]=tc[1][0]; cols[v+7]=tc[1][1];   cols[v+8]=tc[1][2];
+      indices.push(k*3, k*3+1, k*3+2);
+    }
+
+    const geo=new THREE.BufferGeometry();
+    geo.setAttribute('position',new THREE.BufferAttribute(verts,3));
+    geo.setAttribute('color',   new THREE.BufferAttribute(cols,3));
+    geo.setIndex(indices);
+
+    const mat=new THREE.MeshPhongMaterial({
+      vertexColors:true, transparent:true, opacity:P.opa,
+      side:THREE.DoubleSide, shininess:220,
+      emissive:new THREE.Color().setRGB(...tc[0]), emissiveIntensity:P.emi*1.6,
+    });
+    const mesh=new THREE.Mesh(geo,mat);
+    worm.add(mesh);
+    teethMeshes.push({ mesh, rawFrac });
+  }
+}
+
+function updateTeeth(t) {
+  teethMeshes.forEach(({ mesh, rawFrac }) => {
+    const frac = P.tanim
+      ? ((rawFrac + t * P.uspd * 0.015) % 1 + 1) % 1
+      : rawFrac;
+
+    const {p,nn,bn}=frameAt(frac,t);
+    const pulse=P.pulse ? 1+P.pamt*Math.sin(frac*Math.PI*4*P.ufreq-t*P.uspd*1.5) : 1;
+    const rI=P.radius*pulse;
+    const twA=P.tw*frac*Math.PI;
+    const N=P.tcount;
+    const pos=mesh.geometry.attributes.position;
+
+    // angular width of each tooth = full circle / count * tw2
+    const fullSlice = (Math.PI*2) / N;
+    const baseHalf  = fullSlice * P.tw2 * 0.5;
+
+    for(let k=0;k<N;k++){
+      // centre angle of this tooth
+      const midA = (k/N)*Math.PI*2 + twA;
+      const leftA  = midA - baseHalf;
+      const rightA = midA + baseHalf;
+
+      // base points on inner wall
+      const cosL=Math.cos(leftA),  sinL=Math.sin(leftA);
+      const cosR=Math.cos(rightA), sinR=Math.sin(rightA);
+      const cosM=Math.cos(midA),   sinM=Math.sin(midA);
+
+      const nxL=nn.x*cosL+bn.x*sinL, nyL=nn.y*cosL+bn.y*sinL, nzL=nn.z*cosL+bn.z*sinL;
+      const nxR=nn.x*cosR+bn.x*sinR, nyR=nn.y*cosR+bn.y*sinR, nzR=nn.z*cosR+bn.z*sinR;
+      const nxM=nn.x*cosM+bn.x*sinM, nyM=nn.y*cosM+bn.y*sinM, nzM=nn.z*cosM+bn.z*sinM;
+
+      // tip points INWARD (toward centre axis)
+      const tipR = Math.max(0, rI - P.th);
+      const v=k*3;
+      pos.setXYZ(v,   p.x+nxM*tipR, p.y+nyM*tipR, p.z+nzM*tipR);   // tip
+      pos.setXYZ(v+1, p.x+nxL*rI,   p.y+nyL*rI,   p.z+nzL*rI);     // base left
+      pos.setXYZ(v+2, p.x+nxR*rI,   p.y+nyR*rI,   p.z+nzR*rI);     // base right
+    }
+    pos.needsUpdate=true;
+    mesh.geometry.computeVertexNormals();
+  });
+}
+
+// ── REBUILD ───────────────────────────────────
+function rebuildAll(){ buildTube(); buildTeeth(); }
+
+function applyTheme(){
+  lA.color.set(THEMES[theme].lc);
+  if(tubeMesh) tubeMesh.material.emissive.setRGB(...THEMES[theme].t[0]);
+  teethMeshes.forEach(({mesh})=>{ mesh.material.emissive.setRGB(...THEMES[theme].teeth[0]); });
+}
+
+// ── WIRE CONTROLS ─────────────────────────────
+function wire(id, key, dec, mode) {
+  const inp=document.getElementById(id);
+  const lbl=document.getElementById(id+'-val');
+  inp.addEventListener('input', ()=>{
+    P[key]=parseFloat(inp.value);
+    if(lbl) lbl.textContent=P[key].toFixed(dec);
+    if(mode==='all') rebuildAll();
+    else if(mode==='teeth') buildTeeth();
+    else if(mode==='mat'){
+      if(tubeMesh){ tubeMesh.material.opacity=P.opa; tubeMesh.material.emissiveIntensity=P.emi; tubeMesh.material.wireframe=P.wire; }
+      teethMeshes.forEach(({mesh})=>{ mesh.material.opacity=P.opa; mesh.material.emissiveIntensity=P.emi*1.6; });
+    }
+  });
+  if(lbl) lbl.textContent=P[key].toFixed(dec);
+}
+
+wire('radius','radius',2,'all'); wire('wall','wall',2,'all');
+wire('len','len',0,'all'); wire('seg','seg',0,'all'); wire('rres','rres',0,'all');
+wire('bx','bx',2,false); wire('by','by',2,false); wire('tw','tw',2,false);
+wire('uspd','uspd',1,false); wire('uamp','uamp',2,false); wire('ufreq','ufreq',2,false);
+wire('pamt','pamt',2,false);
+wire('trows','trows',0,'teeth'); wire('tcount','tcount',0,'teeth');
+wire('th','th',2,false); wire('tw2','tw2',2,false); wire('tgap','tgap',2,false);
+wire('mclear','mclear',0,'teeth');
+wire('opa','opa',2,'mat'); wire('emi','emi',2,'mat');
+
+function mkToggle(id,key,cb){
+  document.getElementById(id).addEventListener('click',()=>{
+    P[key]=!P[key];
+    document.getElementById(id).classList.toggle('on',P[key]);
+    if(cb) cb();
+  });
+}
+mkToggle('pulse-tp','pulse',null);
+mkToggle('tanim-tp','tanim',null);
+mkToggle('wire-tp','wire',()=>{ if(tubeMesh) tubeMesh.material.wireframe=P.wire; });
+
+document.querySelectorAll('.ts').forEach(sw=>{
+  sw.addEventListener('click',()=>{
+    document.querySelectorAll('.ts').forEach(s=>s.classList.remove('active'));
+    sw.classList.add('active'); theme=sw.dataset.theme;
+    rebuildAll(); applyTheme();
+  });
+});
+
+document.querySelectorAll('.ab').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    document.querySelectorAll('.ab').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active'); orb.fly=false; orb.tPX=0; orb.tPY=0;
+    switch(btn.dataset.axis){
+      case 'side': orb.tP=Math.PI/2; orb.tT=0;         orb.tR=28; break;
+      case 'end':  orb.tP=Math.PI/2; orb.tT=Math.PI/2; orb.tR=10; break;
+      case 'top':  orb.tP=0.05;      orb.tT=0;          orb.tR=28; break;
+      case 'iso':  orb.tP=0.9;       orb.tT=0.6;        orb.tR=28; break;
+      case 'fly':  orb.fly=true; orb.flyZ=0; break;
+    }
+  });
+});
+
+document.getElementById('tbtn').addEventListener('click',()=>{
+  document.getElementById('panel').classList.toggle('hidden');
+});
+
+// ── INIT + LOOP ───────────────────────────────
+rebuildAll();
+
+let clock=0;
+(function loop(){
+  requestAnimationFrame(loop);
+  clock+=0.008;
+  updateTube(clock);
+  updateTeeth(clock);
+  updateCamera(clock);
+  renderer.render(scene,camera);
+})();
+
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+</script>
+</body>
+</html>
